@@ -16,6 +16,16 @@ Deploy to AgentCore:
 Invoke deployed agent:
   agentcore invoke '{"prompt": "Hello", "customer_id": "CUST-123", "session_id": "s1"}'
 """
+# ── Python 3.14 compatibility shim ──────────────────────────────────────────
+# strands_tools.browser depends on the unmaintained `nest_asyncio` package,
+# which is broken on Python 3.14 (asyncio.current_task() regression) and
+# corrupts anyio's request handling for the whole process once triggered.
+# nest-asyncio2 is a maintained, API-compatible fork that fixes this — we
+# load it under the `nest_asyncio` module name so strands_tools picks it up
+# without any changes on our end.
+import sys
+import nest_asyncio2
+sys.modules["nest_asyncio"] = nest_asyncio2
 
 # ── Imports ───────────────────────────────────────────────────────────────────
 # These imports are provided. Do not remove them.
@@ -36,6 +46,36 @@ from typing import Dict
 from bedrock_agentcore.tools.code_interpreter_client import code_session
 from strands_tools.browser import AgentCoreBrowser
 
+import shutil
+import stat
+from pathlib import Path
+
+def _ensure_playwright_driver_executable():
+    """
+    Work around a packaging issue in this deployment mode: zipping the
+    code for deployment does not preserve the executable bit on
+    Playwright's bundled Node driver binary, so Playwright fails with:
+        PermissionError: [Errno 13] Permission denied: '.../playwright/driver/node'
+    /var/task (where the code lands) is read-only, so we can't fix the
+    permission in place. Instead, copy the driver binary to /tmp (which
+    is writable), restore +x there, and point Playwright at the copy
+    via PLAYWRIGHT_NODEJS_PATH -- an override Playwright's own driver
+    resolution code checks before using its bundled binary.
+    """
+    import playwright
+
+    src_node = Path(playwright.__file__).parent / "driver" / "node"
+    if not src_node.exists():
+        return  # nothing to patch on this platform/layout
+
+    tmp_node = Path("/tmp/playwright-driver-node")
+    if not tmp_node.exists():
+        shutil.copy2(src_node, tmp_node)
+
+    tmp_node.chmod(tmp_node.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    os.environ["PLAYWRIGHT_NODEJS_PATH"] = str(tmp_node)
+
+_ensure_playwright_driver_executable()
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("CSAI_Agent")
@@ -49,9 +89,16 @@ browse the web when appropriate.
 Use the AgentCore Gateway tools for order and refund operations.
 Use the knowledge base for product, policy, warranty, loyalty-program, and
 order-status information.
-Use the loyalty discount calculator for exact discount calculations.
+Use the loyalty discount calculator for exact discount calculations. For
+loyalty calculations, automatically apply the points redemption rules:
+floor available points to the nearest lower 500-point block, limit the
+redemption value to no more than 50% of the original order total, then
+apply the tier discount to the subtotal after points redemption. Do not
+assume that points are zero or that the customer must explicitly request
+redemption. Report the calculator's returned values, including
+points_redeemed, tier_discount_pct, final_total, and remaining_points,
+without overriding or recalculating them.
 Use the browser tool when the customer asks for live web information.
-
 Be accurate, concise, and transparent. Do not invent order, refund, product,
 or policy information. Ask for missing information when it is required.
 """
@@ -381,7 +428,12 @@ def calculate_loyalty_discount(
 ) -> str:
     """
     Calculate the loyalty discount for a customer order using the
-    AgentCore Code Interpreter. Runs exact arithmetic in a secure sandbox.
+    AgentCore Code Interpreter. Automatically calculate points redemption
+    using the customer's available points: redeem points in 500-point
+    blocks, subject to the 50% of order-total redemption cap, then apply
+    the customer's tier discount to the remaining subtotal. Do not require
+    the customer to explicitly request points redemption. Runs exact
+    arithmetic in a secure sandbox.
 
     Args:
         loyalty_points: Customer's current points balance
@@ -417,7 +469,7 @@ product_category = {product_category!r}
 # Points that can be redeemed, floored to nearest 500
 points_redeemed = min(
     (loyalty_points // 500) * 500,
-    math.floor(order_total * 0.50 / 0.01)
+    math.floor((order_total * 0.50) / 5) * 500
 )
 
 # Each 500 points = $5 discount
@@ -445,6 +497,7 @@ result = {{
     "points_redeemed": points_redeemed,
     "points_discount": round(points_discount, 2),
     "tier_discount_rate": tier_discount_rate,
+    "tier_discount_pct": round(tier_discount_rate * 100, 2),
     "tier_discount": round(tier_discount, 2),
     "final_total": round(final_total, 2),
     "total_savings": round(total_savings, 2),
@@ -493,6 +546,7 @@ print(json.dumps(result))
             "points_redeemed": 0,
             "points_discount": 0.0,
             "tier_discount_rate": tier_discount_rate,
+            "tier_discount_pct": round(tier_discount_rate * 100, 2),
             "tier_discount": round(tier_discount, 2),
             "final_total": round(final_total, 2),
             "total_savings": round(tier_discount, 2),
@@ -551,7 +605,7 @@ async def invoke(payload, context=None):
         )
 
         # 3. Initialize AgentCore Browser
-        agentcore_browser = AgentCoreBrowser(region=REGION)
+        agentcore_browser = AgentCoreBrowser(region=REGION, session_timeout=600,)
 
         # 4. Build local tools list
         tools = [
@@ -565,20 +619,28 @@ async def invoke(payload, context=None):
             lambda: streamable_http_client(GATEWAY_URL)
         )
 
-        with mcp_client:
-            gateway_tools = mcp_client.list_tools_sync()
-            tools.extend(gateway_tools)
+        try:
+            with mcp_client:
+                gateway_tools = mcp_client.list_tools_sync()
+                tools.extend(gateway_tools)
 
-            # 6. Create the agent
-            agent = Agent(
-                model=model,
-                tools=tools,
-                hooks=[memory_hook],
-                system_prompt=system_prompt,
+                # 6. Create the agent
+                agent = Agent(
+                    model=model,
+                    tools=tools,
+                    hooks=[memory_hook],
+                    system_prompt=system_prompt,
+                )
+
+                # 7. Invoke the agent
+                response = await agent.invoke_async(user_input)
+
+        except Exception as gateway_error:
+            return (
+                "Gateway integration failed while connecting to or using the "
+                f"Gateway tools: {type(gateway_error).__name__}. "
+                "Please retry the request or check the Gateway configuration."
             )
-
-            # 7. Invoke the agent
-            response = await agent.invoke_async(user_input)
 
         # 8. Return the first text block from the response
         for block in response.message.get("content", []):
