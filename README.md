@@ -1,6 +1,6 @@
 # Project: Building a Production-Grade Customer Support AI Agent with Amazon Bedrock AgentCore
 
-**Udacity — AWS AI Engineering Nanodegree — Course 2**
+**Udacity — AWS AI Engineering Nanodegree**
 
 ---
 
