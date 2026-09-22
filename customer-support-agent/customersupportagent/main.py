@@ -77,7 +77,7 @@ def _ensure_playwright_driver_executable():
 
 _ensure_playwright_driver_executable()
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("CSAI_Agent")
 
 system_prompt = """
@@ -526,39 +526,27 @@ print(json.dumps(result))
                 "error": "Code Interpreter returned no result."
             })
 
-    except Exception:
-        # Fallback: calculate using tier discount only
+    except Exception as e:
+        logger.warning(
+            "calculate_loyalty_discount fell back to tier-only: %s",
+            e,
+        )
+
         tier_rates = {
             "Silver": 0.00,
             "Gold": 0.10,
             "Platinum": 0.15,
         }
 
-        tier_discount_rate = tier_rates.get(tier, 0)
-        tier_discount = order_total * tier_discount_rate
-        final_total = order_total - tier_discount
+        tier_rate = tier_rates.get(tier, 0.0)
+        tier_discount = order_total * tier_rate
 
-        return json.dumps({
-            "loyalty_points": loyalty_points,
-            "tier": tier,
-            "order_total": round(order_total, 2),
-            "product_category": product_category,
-            "points_redeemed": 0,
-            "points_discount": 0.0,
-            "tier_discount_rate": tier_discount_rate,
-            "tier_discount_pct": round(tier_discount_rate * 100, 2),
+        fallback = {
             "tier_discount": round(tier_discount, 2),
-            "final_total": round(final_total, 2),
-            "total_savings": round(tier_discount, 2),
-            "points_earned": int(
-                final_total * {
-                    "standard": 1,
-                    "device": 2,
-                    "fresh": 5,
-                }.get(product_category, 1)
-            ),
-            "remaining_points": loyalty_points,
-        })
+            "note": "FALLBACK: tier discount only (Code Interpreter unavailable)",
+        }
+
+        return json.dumps(fallback)
 
 
 # ── TODO 8 — Agent Entrypoint ─────────────────────────────────────────────────
@@ -586,7 +574,6 @@ async def invoke(payload, context=None):
       customer_id (str, optional) — unique customer identifier
       session_id  (str, optional) — session identifier; generated if absent
     """
-    # TODO: Implement the agent invocation
     try:
         # 1. Extract request information
         user_input = payload.get("prompt", "")
@@ -614,15 +601,47 @@ async def invoke(payload, context=None):
             agentcore_browser.browser,
         ]
 
-        # 5. Connect to AgentCore Gateway and load its tools
-        mcp_client = MCPClient(
-            lambda: streamable_http_client(GATEWAY_URL)
+        # 5. Connect to AgentCore Gateway and load Gateway tools
+        gateway_client = MCPClient(
+            lambda: streamable_http_client(url=GATEWAY_URL)
         )
 
         try:
-            with mcp_client:
-                gateway_tools = mcp_client.list_tools_sync()
-                tools.extend(gateway_tools)
+            with gateway_client:
+                try:
+
+                    # Load Gateway tools
+                    gateway_tools = gateway_client.list_tools_sync()
+                    tools.extend(gateway_tools)
+
+                    logger.info(
+                        "Gateway connected successfully. Loaded %d tools.",
+                        len(gateway_tools),
+                    )
+
+                except TimeoutError:
+                    logger.exception("Gateway tool loading timed out")
+                    return (
+                         "Gateway tool loading timed out. "
+                         "Please retry the request or check the Gateway configuration."
+                    )
+
+                except ConnectionError:
+                    logger.exception("Gateway connection failed")
+                    return (
+                        "Gateway connection failed. "
+                        "Please retry the request or check the Gateway configuration."
+                    )
+
+                except Exception as exc:
+                    logger.exception(
+                        "Gateway tool loading failed: %s",
+                        exc,
+                    )
+                    return (
+                        "Gateway tool loading failed. "
+                        "Please retry the request or check the Gateway configuration."
+                    )
 
                 # 6. Create the agent
                 agent = Agent(
@@ -633,13 +652,38 @@ async def invoke(payload, context=None):
                 )
 
                 # 7. Invoke the agent
-                response = await agent.invoke_async(user_input)
+                try:
+                    response = await agent.invoke_async(user_input)
 
-        except Exception as gateway_error:
+                except TimeoutError:
+                    logger.exception("Gateway-backed operation timed out")
+                    return (
+                        "A Gateway-backed operation timed out. "
+                        "Please retry the request."
+                    )
+
+                except ConnectionError:
+                    logger.exception("Gateway-backed operation failed to connect")
+                    return (
+                        "A Gateway-backed operation could not connect to the Gateway. "
+                        "Please retry the request."
+                    )
+
+                except Exception as exc:
+                    logger.exception(
+                        "Gateway-backed operation failed: %s",
+                        exc,
+                    )
+                    return (
+                        "A Gateway-backed operation failed. "
+                        "Please retry the request or check the Gateway configuration."
+                    )
+
+        except Exception as exc:
+            logger.exception("Gateway client initialization failed: %s", exc)
             return (
-                "Gateway integration failed while connecting to or using the "
-                f"Gateway tools: {type(gateway_error).__name__}. "
-                "Please retry the request or check the Gateway configuration."
+                "Could not connect to the Gateway. "
+                "Please retry the request or check the Gateway configuration"
             )
 
         # 8. Return the first text block from the response
