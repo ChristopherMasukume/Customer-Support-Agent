@@ -89,15 +89,23 @@ browse the web when appropriate.
 Use the AgentCore Gateway tools for order and refund operations.
 Use the knowledge base for product, policy, warranty, loyalty-program, and
 order-status information.
-Use the loyalty discount calculator for exact discount calculations. For
-loyalty calculations, automatically apply the points redemption rules:
+Use the calculate_loyalty_discount tool for every loyalty discount
+calculation. Do not calculate, estimate, or recompute loyalty discounts
+yourself.
+
+The calculator is authoritative. After the tool returns, reproduce its
+returned values exactly. Do not substitute values based on your own
+arithmetic or assumptions.
+
+For loyalty calculations, automatically apply the points redemption rules:
 floor available points to the nearest lower 500-point block, limit the
 redemption value to no more than 50% of the original order total, then
-apply the tier discount to the subtotal after points redemption. Do not
-assume that points are zero or that the customer must explicitly request
-redemption. Report the calculator's returned values, including
-points_redeemed, tier_discount_pct, final_total, and remaining_points,
-without overriding or recalculating them.
+apply the tier discount to the subtotal after points redemption.
+
+Always report these calculator fields exactly as returned:
+points_redeemed, tier_discount_pct, final_total, and remaining_points.
+
+Do not modify, reinterpret, or recalculate any of these values.
 Use the browser tool when the customer asks for live web information.
 Be accurate, concise, and transparent. Do not invent order, refund, product,
 or policy information. Ask for missing information when it is required.
@@ -532,6 +540,7 @@ print(json.dumps(result))
             e,
         )
 
+        # Fallback: tier discount only, no points redemption
         tier_rates = {
             "Silver": 0.00,
             "Gold": 0.10,
@@ -539,14 +548,23 @@ print(json.dumps(result))
         }
 
         tier_rate = tier_rates.get(tier, 0.0)
+
+        points_redeemed = 0
+        tier_discount_pct = tier_rate * 100
         tier_discount = order_total * tier_rate
+        final_total = order_total - tier_discount
+        remaining_points = loyalty_points
 
         fallback = {
-            "tier_discount": round(tier_discount, 2),
+            "points_redeemed": points_redeemed,
+            "tier_discount_pct": tier_discount_pct,
+            "final_total": round(final_total, 2),
+            "remaining_points": remaining_points,
             "note": "FALLBACK: tier discount only (Code Interpreter unavailable)",
         }
 
         return json.dumps(fallback)
+    
 
 
 # ── TODO 8 — Agent Entrypoint ─────────────────────────────────────────────────
