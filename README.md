@@ -47,7 +47,6 @@ flowchart LR
     R -.logs.-> CW[CloudWatch<br/>metric filter + alarm]
 ```
 
----
 
 ---
 
@@ -88,23 +87,36 @@ Enable the following model in the Amazon Bedrock console under **Model access**:
 ## 🗂 Project Structure
 
 ```
-project/
-├── INSTRUCTIONS.md          ← this file
-├── RUBRIC.md                ← grading criteria
-├── starter/
-│   ├── main.py              ← your starting point (fill in the TODOs)
-│   └── lambda/
-│       ├── order_tracker.py     ← provided; deploy as-is
-│       └── refund_processor.py  ← provided; deploy as-is
-└── solution/                ← reference implementation (do not copy)
-    ├── main.py
-    ├── product_catalog.txt
-    ├── pyproject.toml
-    ├── lambda/
-    │   ├── order_tracker.py
-    │   ├── refund_processor.py
-    │   └── lambda_schema       ← JSON schema for Gateway tool registration
-    └── step-by-step/           ← one file per build step (for reference)
+Customer-Support-Agent/
+├── aws/
+│   ├── install
+│   ├── README.md
+│   └── THIRD_PARTY_LICENSES
+├── customer-support-agent/
+│   └── customersupportagent/
+│       ├── agentcore/
+│       │   ├── .cli/
+│       │   │   └── deployed-state.json
+│       │   ├── .llm-context/
+│       │   │   ├── agentcore.ts
+│       │   │   ├── aws-targets.ts
+│       │   │   └── README.md
+│       │   ├── cdk/
+│       │   ├── .gitignore
+│       │   ├── agentcore.json
+│       │   └── aws-targets.json
+│       ├── AGENTS.md
+│       ├── main.py
+│       ├── pyproject.toml
+│       ├── README.md
+│       └── uv.lock
+├── Exercises/
+├── Outputs/
+├── Project_starter/
+├── .gitignore
+├── Customer_Support_AI_Agent_Report.pdf
+├── LICENSE.txt
+└── README.md
 ```
 
 ---
