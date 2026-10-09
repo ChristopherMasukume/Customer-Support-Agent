@@ -391,18 +391,6 @@ agentcore invoke '{"prompt": "Go to https://www.amazon.com and tell me the page 
 
 ---
 
-## 📬 Submission Checklist
-
-- [ ] `main.py` with all TODOs completed
-- [ ] Screenshots or terminal output for all 6 test scenarios
-- [ ] Screenshot of the CloudWatch alarm configuration
-- [ ] Brief written reflection (200–400 words) covering:
-  - One design decision you made and why
-  - One challenge you encountered and how you solved it
-  - How you would extend this agent for a production environment
-
----
-
 ## 📚 Helpful References
 
 - [Amazon Bedrock AgentCore Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore.html)
