@@ -1,24 +1,55 @@
-# Project: Building a Production-Grade Customer Support AI Agent with Amazon Bedrock AgentCore
+<div align="center">
 
-**Udacity — AWS AI Engineering Nanodegree**
+# 🤖 Production-Grade Customer Support AI Agent
+
+### Built with Amazon Bedrock AgentCore
+
+*Udacity · AWS AI Engineering Nanodegree*
+
+![Python](https://img.shields.io/badge/Python-3.14+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-Bedrock_AgentCore-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)
+![Model](https://img.shields.io/badge/Model-Amazon_Nova_Lite-232F3E?style=for-the-badge&logo=amazon&logoColor=white)
+![MCP](https://img.shields.io/badge/Protocol-MCP-6E56CF?style=for-the-badge)
+![Region](https://img.shields.io/badge/Region-us--east--1-2ea44f?style=for-the-badge)
+![uv](https://img.shields.io/badge/uv-managed-DE5FE9?style=for-the-badge&logo=uv&logoColor=white)
+
+</div>
 
 ---
 
-## Overview
+## 📖 Overview
 
-In this project you will build a fully functional, production-ready AI customer support agent for a fictional Amazon store. Starting from a simple local chatbot, you will progressively add cloud infrastructure, external tool integration, a knowledge base, persistent memory, a code interpreter, and a browser — finishing with a deployable agent that can handle real customer inquiries end-to-end.
+Build a fully functional, production-ready AI customer support agent for a fictional Amazon store. You start with a simple local chatbot and progressively add cloud infrastructure, external tool integration, a knowledge base, persistent memory, a code interpreter and a browser, finishing with a deployable agent that can handle real customer inquiries end to end.
 
-By the end of the project your agent will be able to:
+### What the agent can do
 
-- Answer questions about products, return policies, and loyalty rewards using Retrieval-Augmented Generation (RAG)
-- Look up order status and process refunds by calling Lambda functions through the AgentCore Gateway
-- Remember customer preferences and conversation history across multiple sessions
-- Calculate exact loyalty discounts using a secure code sandbox
-- Navigate websites to fetch live information
+| Capability | Powered by |
+|---|---|
+| 📚 Answer questions about products, return policies and loyalty rewards | RAG with a **Bedrock Knowledge Base** |
+| 📦 Look up order status and process refunds | **Lambda** functions via the **AgentCore Gateway** (MCP) |
+| 🧠 Remember customer preferences and history across sessions | **AgentCore Memory** (short-term and long-term) |
+| 🧮 Calculate exact loyalty discounts securely | **AgentCore Code Interpreter** sandbox |
+| 🌐 Navigate websites for live information | **AgentCore Browser** |
+| 📈 Monitor and observe behaviour | **Amazon CloudWatch** |
+
+### 🏗 Architecture
+
+```mermaid
+flowchart LR
+    U([Customer]) --> R[AgentCore Runtime<br/>Strands Agent + Nova Lite]
+    R --> M[(AgentCore Memory<br/>facts + preferences)]
+    R --> KB[(Bedrock Knowledge Base<br/>S3 + OpenSearch Serverless)]
+    R --> CI[Code Interpreter<br/>loyalty discounts]
+    R --> B[AgentCore Browser<br/>live web]
+    R --> G[AgentCore Gateway<br/>MCP]
+    G --> L1[λ order-tracker<br/>via API Gateway]
+    G --> L2[λ refund-processor<br/>direct invoke]
+    R -.logs.-> CW[CloudWatch<br/>metric filter + alarm]
+```
 
 ---
 
-## Learning Objectives
+## 🎯 Learning Objectives
 
 After completing this project you will be able to:
 
@@ -32,20 +63,23 @@ After completing this project you will be able to:
 
 ---
 
-## Prerequisites
+## ✅ Prerequisites
 
-### AWS Account
+### ☁️ AWS Account
 
-- An active AWS account with permission to create and manage:
-  - IAM roles and policies
-  - Lambda functions
-  - API Gateway REST APIs
-  - Amazon Bedrock Knowledge Bases (with S3 and OpenSearch access)
-  - Amazon Bedrock AgentCore resources (Runtime, Gateway, Memory)
-  - Amazon CloudWatch
-- All resources should be created in **us-east-1** (N. Virginia) unless stated otherwise.
+An active AWS account with permission to create and manage:
 
-### Local Development Environment
+- IAM roles and policies
+- Lambda functions
+- API Gateway REST APIs
+- Amazon Bedrock Knowledge Bases (with S3 and OpenSearch access)
+- Amazon Bedrock AgentCore resources (Runtime, Gateway, Memory)
+- Amazon CloudWatch
+
+> [!IMPORTANT]
+> Create all resources in **us-east-1** (N. Virginia) unless stated otherwise.
+
+### 💻 Local Development Environment
 
 | Tool | Version |
 |------|---------|
@@ -55,15 +89,15 @@ After completing this project you will be able to:
 | AgentCore CLI (`agentcore`) | Installed via the starter-toolkit |
 | Node.js (for MCP Inspector) | 18+ |
 
-### Model Access
+### 🔑 Model Access
 
-Enable the following models in the Amazon Bedrock console under **Model access**:
+Enable the following model in the Amazon Bedrock console under **Model access**:
 
 - **Amazon Nova Lite** (`amazon.nova-lite-v1:0`)
 
 ---
 
-## Project Structure
+## 🗂 Project Structure
 
 ```
 project/
@@ -87,9 +121,20 @@ project/
 
 ---
 
-## Part 1 — AWS Infrastructure Setup
+## 🚀 Roadmap at a Glance
 
-Complete these steps **before** writing any agent code.
+| Part | Focus | Outcome |
+|---|---|---|
+| **1** | AWS infrastructure setup | Lambdas, Gateway, Knowledge Base and Memory ready |
+| **2** | Building the agent | `main.py` TODOs implemented and agent deployed |
+| **3** | Functional testing | 6 scenarios verified |
+| **4** | CloudWatch monitoring | Error alarm configured |
+
+---
+
+## ☁️ Part 1 — AWS Infrastructure Setup
+
+> Complete these steps **before** writing any agent code.
 
 ### Step 1.1 — Project Initialisation
 
@@ -112,7 +157,7 @@ The two Lambda functions (`order_tracker.py` and `refund_processor.py`) are prov
    - `refund-processor`
 2. Paste the contents of each file into the inline code editor (or zip and upload).
 3. Attach an execution role with basic Lambda permissions (CloudWatch Logs).
-4. Note the ARN of each function — you will need them in the next step.
+4. Note the ARN of each function, as you will need them in the next step.
 
 ### Step 1.3 — Set Up the AgentCore Gateway
 
@@ -131,12 +176,11 @@ The Gateway exposes your Lambda functions as MCP tools that the agent can call.
    - `GET /orders/{order_id}`
    - `GET /customers/{customer_id}/orders`
    - `GET /customers/{customer_id}`
-
 5. For `refund_processor`, import the tool schema from `solution/lambda/lambda_schema`.
-
-6. Copy the **Gateway URL** (ends with `/mcp`) — paste it into `GATEWAY_URL` in your `main.py`.
+6. Copy the **Gateway URL** (ends with `/mcp`) and paste it into `GATEWAY_URL` in your `main.py`.
 
 **Verify with MCP Inspector:**
+
 ```bash
 npx @modelcontextprotocol/inspector
 # Connect to your Gateway URL and confirm all tools are listed.
@@ -151,9 +195,10 @@ npx @modelcontextprotocol/inspector
    - Embeddings model: Amazon Titan Embeddings v2
    - Vector store: Amazon OpenSearch Serverless (auto-created)
 3. **Sync** the data source.
-4. Copy the **Knowledge Base ID** — paste it into `KB_ID` in your `main.py`.
+4. Copy the **Knowledge Base ID** and paste it into `KB_ID` in your `main.py`.
 
 **Verify:**
+
 ```bash
 # In the console, use the Knowledge Base "Test" tab
 # Query: "What is the return policy for electronics?"
@@ -171,19 +216,29 @@ npx @modelcontextprotocol/inspector
    | Semantic extraction | `customer_facts` | `cs_agent/{actorId}/facts` |
    | User preference | `customer_preferences` | `cs_agent/{actorId}/preferences` |
 
-3. Copy the **Memory ID** — paste it into `MEMORY_ID` in your `main.py`.
+3. Copy the **Memory ID** and paste it into `MEMORY_ID` in your `main.py`.
+
+### 📝 Configuration Values to Collect
+
+| Variable | Where it comes from |
+|---|---|
+| `GATEWAY_URL` | Step 1.3 (ends with `/mcp`) |
+| `KB_ID` | Step 1.4 |
+| `MEMORY_ID` | Step 1.5 |
 
 ---
 
-## Part 2 — Building the Agent
+## 🛠 Part 2 — Building the Agent
 
 Open `starter/main.py`. It contains scaffolding and `# TODO` comments marking every section you need to implement. Work through the TODOs in order.
 
-The step-by-step reference files in `solution/step-by-step/` show the state of the code after each section is complete — consult them if you get stuck, but try to implement each section yourself first.
+> [!TIP]
+> The step-by-step reference files in `solution/step-by-step/` show the state of the code after each section is complete. Consult them if you get stuck, but try to implement each section yourself first.
 
 ### Section 1 — Configuration and Initialisation
 
 Fill in your resource IDs and set up:
+
 - `BedrockAgentCoreApp`
 - `BedrockModel` with Amazon Nova Lite
 - `MemoryClient` and `boto3` Bedrock runtime client
@@ -191,10 +246,12 @@ Fill in your resource IDs and set up:
 ### Section 2 — Knowledge Base Tool
 
 Implement `search_knowledge_base(query)`:
+
 - Call the Bedrock Knowledge Base Retrieve API
 - Join result chunks with `"\n---\n"`
 
 **Test:**
+
 ```bash
 agentcore invoke '{"prompt": "Is the Kindle Paperwhite waterproof?"}'
 # Expected: mention of IPX8 rating
@@ -203,17 +260,20 @@ agentcore invoke '{"prompt": "Is the Kindle Paperwhite waterproof?"}'
 ### Section 3 — Long-Term Memory Hook
 
 Implement `MemoryHook` with two methods:
-- `retrieve_customer_context` — query all memory namespaces and prepend results to the user message
-- `save_support_interaction` — save the completed (user, assistant) turn after each response
+
+- `retrieve_customer_context`: query all memory namespaces and prepend results to the user message
+- `save_support_interaction`: save the completed (user, assistant) turn after each response
 
 ### Section 4 — Loyalty Discount Tool (Code Interpreter)
 
 Implement `calculate_loyalty_discount(loyalty_points, tier, order_total, product_category)`:
+
 - Build a Python code string containing the discount logic
 - Execute it with `code_session()` and return the JSON result
 - Include a fallback for when the Code Interpreter is unavailable
 
 **Test:**
+
 ```bash
 agentcore invoke '{"prompt": "I am a Gold member with 4250 points. Calculate my discount on a $150 order.", "customer_id": "CUST-123", "session_id": "s1"}'
 ```
@@ -221,7 +281,8 @@ agentcore invoke '{"prompt": "I am a Gold member with 4250 points. Calculate my 
 ### Section 5 — Main Entrypoint
 
 Implement the `invoke(payload, context)` function:
-- Extract `prompt`, `customer_id`, and `session_id` from the payload
+
+- Extract `prompt`, `customer_id` and `session_id` from the payload
 - Instantiate `MemoryHook` and `AgentCoreBrowser`
 - Connect to the Gateway via `MCPClient` and load gateway tools
 - Build the `Agent` with all tools and hooks and return its response
@@ -241,59 +302,86 @@ agentcore invoke '{"prompt": "Hello, what can you help me with?", "customer_id":
 
 ---
 
-## Part 3 — Functional Testing
+## 🧪 Part 3 — Functional Testing
 
-Run the following test scenarios and verify the expected behaviour. Include screenshots or copy the terminal output in your submission.
+Run the following scenarios and verify the expected behaviour. Include screenshots or copy the terminal output in your submission.
 
-### Test 1 — Order Tracking
+| # | Scenario | Expected result |
+|---|---|---|
+| 1 | 📦 Order tracking | Shipping status, tracking number `TRK987654321`, carrier UPS, estimated delivery |
+| 2 | 💸 Refund processing | Refund ID, `APPROVED` status, 3-5 business days message |
+| 3 | 📚 Knowledge Base (RAG) | Free same-day shipping, 15% discount, priority support |
+| 4 | 🧠 Memory (long-term) | Agent recalls "Jane" and "concise responses" in a new session |
+| 5 | 🧮 Loyalty discount | Points redeemed, tier discount 10%, final total, remaining points |
+| 6 | 🌐 Browser tool | Page title retrieved from live Amazon.com |
+
+<details>
+<summary><b>Test 1 — Order Tracking</b></summary>
 
 ```bash
 agentcore invoke '{"prompt": "Can you track order ORD-001?", "customer_id": "CUST-123", "session_id": "t1"}'
 # Expected: shipping status, tracking number TRK987654321, carrier UPS, estimated delivery
 ```
 
-### Test 2 — Refund Processing
+</details>
+
+<details>
+<summary><b>Test 2 — Refund Processing</b></summary>
 
 ```bash
 agentcore invoke '{"prompt": "I want to return my Kindle Paperwhite (ORD-002). Please initiate a refund.", "customer_id": "CUST-123", "session_id": "t2"}'
 # Expected: refund ID, APPROVED status, 3-5 business days message
 ```
 
-### Test 3 — Knowledge Base (RAG)
+</details>
+
+<details>
+<summary><b>Test 3 — Knowledge Base (RAG)</b></summary>
 
 ```bash
 agentcore invoke '{"prompt": "What are the benefits of the Platinum loyalty tier?", "customer_id": "CUST-123", "session_id": "t3"}'
 # Expected: free same-day shipping, 15% discount, priority support
 ```
 
-### Test 4 — Memory (Long-Term)
+</details>
+
+<details>
+<summary><b>Test 4 — Memory (Long-Term)</b></summary>
 
 ```bash
-# Session A — introduce yourself
+# Session A: introduce yourself
 agentcore invoke '{"prompt": "Hi, I am Jane. I prefer concise responses.", "customer_id": "CUST-123", "session_id": "s-A"}'
 
-# Session B (new session) — verify recall
+# Session B (new session): verify recall
 agentcore invoke '{"prompt": "Do you remember my name and communication preference?", "customer_id": "CUST-123", "session_id": "s-B"}'
 # Expected: agent recalls "Jane" and "concise responses"
 ```
 
-### Test 5 — Loyalty Discount Calculation
+</details>
+
+<details>
+<summary><b>Test 5 — Loyalty Discount Calculation</b></summary>
 
 ```bash
 agentcore invoke '{"prompt": "I am a Gold member with 4250 points. Calculate my discount on a $150 standard order.", "customer_id": "CUST-123", "session_id": "t5"}'
 # Expected: points redeemed, tier discount 10%, final total, remaining points
 ```
 
-### Test 6 — Browser Tool
+</details>
+
+<details>
+<summary><b>Test 6 — Browser Tool</b></summary>
 
 ```bash
 agentcore invoke '{"prompt": "Go to https://www.amazon.com and tell me the page title.", "customer_id": "CUST-123", "session_id": "t6"}'
 # Expected: page title retrieved from live Amazon.com
 ```
 
+</details>
+
 ---
 
-## Part 4 — CloudWatch Monitoring
+## 📈 Part 4 — CloudWatch Monitoring
 
 1. In the AWS console, navigate to **CloudWatch** → **Log Groups**.
 2. Find the log group for your AgentCore Runtime (named after your deployment).
@@ -303,7 +391,7 @@ agentcore invoke '{"prompt": "Go to https://www.amazon.com and tell me the page 
 
 ---
 
-## Submission Checklist
+## 📬 Submission Checklist
 
 - [ ] `main.py` with all TODOs completed
 - [ ] Screenshots or terminal output for all 6 test scenarios
@@ -315,7 +403,7 @@ agentcore invoke '{"prompt": "Go to https://www.amazon.com and tell me the page 
 
 ---
 
-## Helpful References
+## 📚 Helpful References
 
 - [Amazon Bedrock AgentCore Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore.html)
 - [Strands Agents Documentation](https://strandsagents.com)
