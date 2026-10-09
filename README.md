@@ -19,7 +19,7 @@
 
 ## 📖 Overview
 
-Build a fully functional, production-ready AI customer support agent for a fictional Amazon store. You start with a simple local chatbot and progressively add cloud infrastructure, external tool integration, a knowledge base, persistent memory, a code interpreter and a browser, finishing with a deployable agent that can handle real customer inquiries end to end.
+This is a fully functional, production-ready AI customer support agent for a fictional Amazon store. You start with a simple local chatbot and progressively add cloud infrastructure, external tool integration, a knowledge base, persistent memory, a code interpreter and a browser, finishing with a deployable agent that can handle real customer inquiries end to end.
 
 ### What the agent can do
 
@@ -48,18 +48,6 @@ flowchart LR
 ```
 
 ---
-
-## 🎯 Learning Objectives
-
-After completing this project you will be able to:
-
-1. Deploy an AI agent to Amazon Bedrock AgentCore
-2. Wire up external Lambda tools via the AgentCore Gateway using the Model Context Protocol (MCP)
-3. Implement RAG with a Bedrock Knowledge Base
-4. Add short-term (session) and long-term (cross-session) memory using AgentCore Memory
-5. Use the AgentCore Code Interpreter for precise computation
-6. Integrate the AgentCore Browser tool for live web access
-7. Monitor and observe agent behaviour with Amazon CloudWatch
 
 ---
 
